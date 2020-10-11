@@ -3,7 +3,10 @@ Lets you track head position and rotation through a webcam.
 
 It catches an image off your camera, finds your head position, detects its rotation and sends the measured data to localhost via UDP.
 
-## How to run
+## How to download and run
+
+On releases page (<https://github.com/Eugene-E0a80fd8080ff8e/HeadTracker6DoF/releases>) select a latest release, open `Assets` section and download **HeadTracker6DoF.zip**. 
+Unzip it.
 
 Make sure your web camera is connected.
 Run file `_run.cmd`.

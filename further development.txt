@@ -1,0 +1,23 @@
+
+
+https://towardsdatascience.com/real-time-head-pose-estimation-in-python-e52db1bc606a
+
+cnn-facial-landmark:
+https://github.com/yinguobing/cnn-facial-landmark
+https://yinguobing.com/facial-landmark-localization-by-deep-learning-background/
+
+https://github.com/yinguobing/head-pose-estimation
+
+
+
+OpenFace (confusing license)
+https://github.com/TadasBaltrusaitis/OpenFace
+
+
+
+facial-landmark-dnn (MIT)
+https://github.com/junhwanjang/face_landmark_dnn
+
+
+Face Mesh , OpenVINO
+https://opencv.org/how-to-speed-up-deep-learning-inference-using-openvino-toolkit-2/

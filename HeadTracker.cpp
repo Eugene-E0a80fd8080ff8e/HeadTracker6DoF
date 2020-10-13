@@ -95,9 +95,7 @@ int main(int argc, char *argv[])
 	
 	//std::unique_ptr<PipeSender> sender = move(factory_PipeSender());
 	//sender->openPipe();
-	vector<unique_ptr<UDPSender> > senders;
-	for (int i = 0;i < 10;i++) // ahh well
-		senders.push_back(make_unique<UDPSender>( 62730 + i ));
+	unique_ptr<UDPSender> sender = make_unique<UDPSender>(62731);
 
 	dlib::frontal_face_detector frontal_face_detector = dlib::get_frontal_face_detector();
 	dlib::shape_predictor pose_model;
@@ -386,8 +384,7 @@ int main(int argc, char *argv[])
 				data.push_back(res_rotation.at<double>(1));
 				data.push_back(res_rotation.at<double>(2));
 
-				for(auto & sender : senders)
-					sender->send_rt(data);
+				sender->send_rt(data);
 
 			}
 
@@ -422,6 +419,9 @@ int main(int argc, char *argv[])
 			}
 			prev_frame_start = frame_start;
 		}
+
+		
+		if (0 == cv::getWindowProperty(windowTitle, cv::WND_PROP_VISIBLE))  break; // 'X' was clicked
 
 		cv::imshow(windowTitle, frame);
 

@@ -46,20 +46,6 @@
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <None Include="_run.cmd">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="_run Camera 0.cmd">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="_run Camera 1.cmd">
-      <Filter>Resource Files</Filter>
-    </None>
-    <None Include="_run Camera 2.cmd">
-      <Filter>Resource Files</Filter>
-    </None>
-  </ItemGroup>
-  <ItemGroup>
     <Text Include="further development.txt">
       <Filter>Source Files</Filter>
     </Text>
@@ -68,5 +54,14 @@
     <CopyFileToFolders Include="shape_predictor_68_face_landmarks.dat">
       <Filter>Resource Files</Filter>
     </CopyFileToFolders>
+    <CopyFileToFolders Include="_run.cmd" />
+    <CopyFileToFolders Include="_run Camera 1 1280x1024.cmd" />
+    <CopyFileToFolders Include="_run Camera 0 640x480.cmd" />
+    <CopyFileToFolders Include="_run Camera 0 800x600.cmd" />
+    <CopyFileToFolders Include="_run Camera 0 1024x768.cmd" />
+    <CopyFileToFolders Include="_run Camera 0 1280x1024.cmd" />
+    <CopyFileToFolders Include="_run Camera 1 640x480.cmd" />
+    <CopyFileToFolders Include="_run Camera 1 800x600.cmd" />
+    <CopyFileToFolders Include="_run Camera 1 1024x768.cmd" />
   </ItemGroup>
 </Project>

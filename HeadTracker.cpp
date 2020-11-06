@@ -11,10 +11,11 @@ using namespace cv;
 #include "udpsender.hpp"
 //#include "pipesender.hpp"
 
-#define CAM_WIDTH 640
-#define CAM_HEIGHT 480
+//#define CAM_WIDTH 640
+//#define CAM_HEIGHT 480
 
-double camera_K[9] = { CAM_WIDTH, 0.0, CAM_WIDTH/2, 0.0, CAM_HEIGHT, CAM_HEIGHT/2, 0.0, 0.0, 1.0 };
+//double camera_K[9] = { CAM_WIDTH, 0.0, CAM_WIDTH/2, 0.0, CAM_HEIGHT, CAM_HEIGHT/2, 0.0, 0.0, 1.0 };
+double camera_K[9] = { -1, 0.0, -1, 0.0, -1, -1, 0.0, 0.0, 1.0 };
 double camera_D[5] = { 0, 0, 0, 0, 0 };
 
 
@@ -62,11 +63,46 @@ const char* const  windowTitle = "Web Cam Head Tracking";
 int main(int argc, char *argv[])
 {
 	int selectedCamera = 0;
+	int CAM_WIDTH = 640;
+	int CAM_HEIGHT = 480;
 
 	if (argc == 2)
 	{
 		sscanf(argv[1], "%d", &selectedCamera);
 	}
+	if (argc == 3)
+	{
+		int resolution =1;
+		sscanf(argv[2], "%d", &resolution);
+		if (resolution == 1) {
+			CAM_WIDTH = 640;
+			CAM_HEIGHT = 480;
+		}
+		else if(resolution == 2) {
+			CAM_WIDTH = 800;
+			CAM_HEIGHT = 600;
+		}
+		else if(resolution == 3) {
+			CAM_WIDTH = 1024;
+			CAM_HEIGHT = 768;
+		}
+		else if (resolution == 4) {
+			CAM_WIDTH = 1280;
+			CAM_HEIGHT = 800;
+		}
+		else if (resolution == 5) {
+			CAM_WIDTH = 1920;
+			CAM_HEIGHT = 1080;
+		}
+	}
+
+	{
+		camera_K[0] = CAM_WIDTH;
+		camera_K[2] = CAM_WIDTH/2;
+		camera_K[4] = CAM_HEIGHT;
+		camera_K[5] = CAM_HEIGHT/2;
+	}
+
 	std::cout << "Using camera #"<< selectedCamera << endl;
 
 
@@ -191,7 +227,22 @@ int main(int argc, char *argv[])
 
 					poses.push_back( pose_model(fullimg, face_shifted) );
 				}
+			}
 
+			array< pair<short, short> , 68 > avg_pose;
+			{
+				for (int i = 0;i < (int)poses[0].num_parts();i++)
+				{
+					int x = 0, y = 0;
+					for (auto pose : poses) {
+						dlib::point p = pose.part(i);
+						x += p.x();
+						y += p.y();
+					}
+					x /= SOLUTIONS;
+					y /= SOLUTIONS;
+					avg_pose[i] = make_pair<short, short>((short)x, (short)y);
+				}
 			}
 
 			auto drawAnnotatedPose = [](Mat& frame, const dlib::full_object_detection& pose)
@@ -206,6 +257,21 @@ int main(int argc, char *argv[])
 				}
 			};
 			//drawAnnotatedPose(frame, poses[0]);
+
+			auto drawAnnotatedAvgPose = [](Mat& frame, const array< pair<short,short> , 68> & pose)
+			{
+				for (int i = 0;i < pose.size();i++)
+				{
+					Point p(pose[i].first, pose[i].second);
+
+					cv::circle(frame, p, 3, cv::Scalar(128, 128, 128), -1);
+
+					ostringstream str;
+					str << i;
+					cv::putText(frame, str.str(), p + cv::Point(-4, 2), cv::FONT_HERSHEY_PLAIN, 0.6, cv::Scalar(255, 255, 0), 1);
+				}
+			};
+			drawAnnotatedAvgPose(frame, avg_pose);
 
 			auto drawPoseWithCircles = [](Mat& frame, const dlib::full_object_detection& pose,int * model, int modelsize, int radius, const Scalar& color) {
 				for (int i = 0;i < modelsize;i++)
@@ -384,7 +450,8 @@ int main(int argc, char *argv[])
 				data.push_back(res_rotation.at<double>(1));
 				data.push_back(res_rotation.at<double>(2));
 
-				sender->send_rt(data);
+				//sender->send_rt(data);
+				sender->send_rt_and_68points(data,avg_pose);
 
 			}
 
@@ -396,12 +463,14 @@ int main(int argc, char *argv[])
 			prevRotationAndTranslationValid = true;
 		}
 
+		
 		{ // benchmarking
 			int64 frame_end = cv::getTickCount();
 			ostringstream strTimespan;
 			strTimespan << (frame_end - frame_start) / tickFreq * 1000 << " ms";
 			cv::putText(frame, strTimespan.str(), cv::Point(10, 10), cv::FONT_HERSHEY_PLAIN, 1.0, cv::Scalar(0, 255, 0), 1);
 		}
+		
 
 		{ // benchmarking
 			if (prev_frame_start != -1)

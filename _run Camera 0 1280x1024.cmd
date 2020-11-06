@@ -1,2 +1,2 @@
 @set OPENCV_OPENCL_DEVICE=:CPU:
-@HeadTracker6DoF.exe 0 1
+@HeadTracker6DoF.exe 0 4

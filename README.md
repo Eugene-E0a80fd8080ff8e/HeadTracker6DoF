@@ -9,8 +9,7 @@ On releases page (<https://github.com/Eugene-E0a80fd8080ff8e/HeadTracker6DoF/rel
 Unzip it.
 
 Make sure your web camera is connected.
-Run file `_run.cmd`.
-If you have more than one camera, run one of `"_run Camera 0.cmd"`, `"_run Camera 1.cmd"` or `"_run Camera 2.cmd"`.
+Run file `_run.cmd` or one of other *_run...* files, selecting your camera and resolution according to file name.
 
 ## How to compile
 

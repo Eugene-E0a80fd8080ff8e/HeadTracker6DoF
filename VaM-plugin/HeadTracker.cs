@@ -50,6 +50,8 @@ namespace MVRPlugin
 
         Quaternion calc()
         {
+            //return headRotation; //bno055
+
 
             if (headTimeSens - headTimeSens2 < 200 && headTimeSens - headTimeSens2 != 0 && headTimeRec - headTimeRec2 < 200 && Environment.TickCount - headTimeRec < 200)
             { }  // all ok
@@ -125,9 +127,10 @@ namespace MVRPlugin
                         return q;
                     }
                     int t = Environment.TickCount;
-                    float p = Mathf.Exp( -(t - prev_t) / damper_ms ); // has distributive property relative to time. It is here to compensate for uneven framerate.
+                    float p = Mathf.Exp( -(t - prev_t) / damper_ms );
 
-                    //d($"p={p} ; prev_q={prev_q} ; q={q}");
+                    d($"damper_ms={damper_ms}");
+
                     Quaternion res;
                     if (p < 1e-8) res = q;
                     else res = Quaternion.Slerp(q, prev_q, p);
@@ -147,7 +150,7 @@ namespace MVRPlugin
                     if (a.x > 180) a.x -= 360;
                     if (a.y > 180) a.y -= 360;
                     if (a.z > 180) a.z -= 360;
-                    d($"limiter : {a.x} , {a.y} , {a.z}");
+                    //d($"limiter : {a.x} , {a.y} , {a.z}");
                     a.x = Mathf.Clamp(a.x, -limiter_x, limiter_x);
                     a.y = Mathf.Clamp(a.y, -limiter_y, limiter_y);
                     a.z = Mathf.Clamp(a.z, -limiter_z, limiter_z);
@@ -222,8 +225,8 @@ namespace MVRPlugin
 
             rot = damper(rot); // stateful and time-dependent
             rot = linearPredictor(rot, headTimeSens, headTimeRec); // stateful and time-dependent
-            rot = deadband(rot); // stateful
-            rot = limiter(rot); // stateless
+            //rot = deadband(rot); // stateful
+            //rot = limiter(rot); // stateless
             rot = finalDamper(rot); // stateful and time-dependent
             rot = amplifier(rot); // stateless
 
@@ -272,7 +275,7 @@ namespace MVRPlugin
                             headPosition2 = headPosition;
                             headRotation2 = headRotation;
 
-                            headTimeRec = millis;  // when packet was received , local time
+                            headTimeRec = millis;  // time when packet was received , local time
                             headTimeSens = (int)timestamp;  // when pose sensor produced this data, sensor time
 
                             headPosition = new Vector3(x, y, z);
@@ -300,12 +303,63 @@ namespace MVRPlugin
 
                             break;
                         }
+                    case 68:
+                        {
+                            int dataSize = System.BitConverter.ToInt16(p, pp);
+                            pp += 2;
+
+                            Int32 timestamp = System.BitConverter.ToInt32(p, pp);
+                            pp += 4;
+
+                            Int32 counter = System.BitConverter.ToInt32(p, pp);
+                            pp += 4;
+
+                            float w = (float)System.BitConverter.ToInt16(p, pp);
+                            pp += 2;
+                            float x = (float)System.BitConverter.ToInt16(p, pp);
+                            pp += 2;
+                            float y = (float)System.BitConverter.ToInt16(p, pp);
+                            pp += 2;
+                            float z = (float)System.BitConverter.ToInt16(p, pp);
+                            pp += 2;
+
+                            //d($"BNO055 quaternion: {w}  {x}  {y}  {z}");
+
+                            Quaternion q = Quaternion.identity;
+
+                            q *= Quaternion.Euler(90, 0, 0) ;
+                            q *= new Quaternion(x / 16384, y / 16384, z / 16384, w / 16384 );
+                            q *= Quaternion.Euler(-90, 0, 0);
+
+                            q *= Quaternion.Euler(0, -210 , 0);
+                            q *= Quaternion.Euler(0, 180, 0);
+
+                           
+                            //Vector3 e = q.eulerAngles;
+                            //d($"BNO055 q->euler: {e.x}  {e.y}  {e.z}");
+
+                            {
+                                //Atom a = SuperController.singleton.GetAtomByUid("DSBR_Chair");
+                                //a.transform.rotation = q;
+
+                            }
+
+                            headRotation = q;
+
+                            break;
+
+                        }
 
                     case 0xff: // announce packet
                         return;
 
-                    default: // error
-                        return;
+                    default: // skip unknown packet
+                        {
+                            int dataSize = System.BitConverter.ToInt16(p, pp);
+                            pp += 2;
+                            pp += dataSize - 2 - 1;
+                        }
+                        break;
                 }
 
                 if (pp < 0 || pp >= p.Length)
@@ -359,9 +413,9 @@ namespace MVRPlugin
         `Amplifier
         ^height=70,fontSize=60,alignment=MiddleCenter
 
-        Pitch amplifier : Float [2,0.5,3]
+        Pitch amplifier : Float [2,0.5,5]
 
-        Yaw amplifier : Float [1.5,0.5,3]
+        Yaw amplifier : Float [1.5,0.5,5]
 
         Roll amplifier : Float [-1,-3,3]
 

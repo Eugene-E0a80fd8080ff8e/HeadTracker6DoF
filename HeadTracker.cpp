@@ -1,6 +1,4 @@
 ﻿
-
-
 #include "stdafx.h"
 
 using namespace std;
@@ -9,12 +7,8 @@ using namespace cv;
 #include "basic_quaternions.hpp"
 #include "utils_opencv.hpp"
 #include "udpsender.hpp"
-//#include "pipesender.hpp"
 
-//#define CAM_WIDTH 640
-//#define CAM_HEIGHT 480
 
-//double camera_K[9] = { CAM_WIDTH, 0.0, CAM_WIDTH/2, 0.0, CAM_HEIGHT, CAM_HEIGHT/2, 0.0, 0.0, 1.0 };
 double camera_K[9] = { -1, 0.0, -1, 0.0, -1, -1, 0.0, 0.0, 1.0 };
 double camera_D[5] = { 0, 0, 0, 0, 0 };
 
@@ -99,7 +93,7 @@ int main(int argc, char *argv[])
 	{
 		camera_K[0] = CAM_WIDTH;
 		camera_K[2] = CAM_WIDTH/2;
-		camera_K[4] = CAM_HEIGHT;
+		camera_K[4] = CAM_WIDTH;
 		camera_K[5] = CAM_HEIGHT/2;
 	}
 

@@ -35,50 +35,111 @@ namespace MVRPlugin
         Quaternion headRotation2;
         int headTimeRec2;
         int headTimeSens2;
-        
+
 
         float amplification_x = 2, amplification_y = 2, amplification_z = 1;
         float limiter_x = 20, limiter_y = 45, limiter_z = 25;
         float damper_ms = 100;
         float finalDamper_ms = 200;
-        float deadbandAngle = 3;
+        float deadbandAngle = 0.8f;
 
-        Func<Quaternion, int,int, Quaternion> linearPredictor = null;
-        Func<Quaternion, Quaternion> damper = null, limiter=null, amplifier=null, deadband=null, finalDamper = null;
+        QuaternionFilter damper = null, deadband = null, amplifier = null, limiter = null, finalDamper = null;
+        QuaternionLinearPredictor linearPredictor = null;
 
         #region calculations itself
 
-        Quaternion calc()
+        #region filters definitions
+        interface QuaternionFilter
         {
-            //return headRotation; //bno055
+            Quaternion filter(Quaternion input);
+            void reset();
+        }
 
+        class QuaternionFilterDamper : QuaternionFilter
+        {
+            readonly Func<float> get_damper_ms;
+            Quaternion prev_q;
+            int prev_t = -1;
 
-            if (headTimeSens - headTimeSens2 < 200 && headTimeSens - headTimeSens2 != 0 && headTimeRec - headTimeRec2 < 200 && Environment.TickCount - headTimeRec < 200)
-            { }  // all ok
-            else
+            public QuaternionFilterDamper(Func<float> get_damper_ms)
             {
-                // sensor stale, reset
-                damper = null;
-                deadband = null;
-                finalDamper = null;
-                linearPredictor = null;
-                //return; 
+                this.get_damper_ms = get_damper_ms;
+                prev_q = Quaternion.identity;
             }
-
-            // linear predictor. It is needed to compensate for differencies between sensor rate and frame rate.
-            
-            if( null == linearPredictor)
+            public Quaternion filter(Quaternion q)
             {
-                int prev2_sensorTime = -1;
-                int prev2_recTime = -1;
-                Quaternion prev2_q = Quaternion.identity;
-
-                int prev_sensorTime = -1;
-                int prev_recTime = -1;
-                Quaternion prev_q = Quaternion.identity;
-                linearPredictor = (q, sensorTime, recTime) =>
+                if (prev_t == -1)
                 {
-                    if (prev_sensorTime == -1)
+                    prev_q = q;
+                    prev_t = Environment.TickCount;
+                    return q;
+                }
+                int t = Environment.TickCount;
+                float damper_ms = this.get_damper_ms.Invoke();
+                float p = Mathf.Exp(-(t - prev_t) / damper_ms);
+
+                Quaternion res;
+                if (p < 1e-8) res = q;
+                else res = Quaternion.Slerp(q, prev_q, p);
+                prev_q = res;
+                prev_t = t;
+
+                return res;
+            }
+            public void reset()
+            {
+                prev_t = -1;
+            }
+        }
+
+        class QuaternionFilterDeadband : QuaternionFilter
+        {
+            readonly Func<float> get_deadband_degrees;
+            bool deadbandNeedsInit = true;
+            Quaternion prev_q = Quaternion.identity;
+
+            public QuaternionFilterDeadband(Func<float> get_deadband_degrees)
+            {
+                this.get_deadband_degrees = get_deadband_degrees;
+                prev_q = Quaternion.identity;
+                deadbandNeedsInit = true;
+            }
+            public Quaternion filter(Quaternion q)
+            {
+                if (deadbandNeedsInit)
+                {
+                    prev_q = q;
+                    deadbandNeedsInit = false;
+                    return q;
+                }
+                float angle = Quaternion.Angle(prev_q, q);
+                if (angle > this.get_deadband_degrees.Invoke())
+                    prev_q = q;
+                return prev_q;
+            }
+            public void reset()
+            {
+                deadbandNeedsInit = true;
+            }
+        }
+
+        class QuaternionLinearPredictor 
+        {
+            int prev2_sensorTime = -1;
+            int prev2_recTime = -1;
+            Quaternion prev2_q = Quaternion.identity;
+
+            int prev_sensorTime = -1;
+            int prev_recTime = -1;
+            Quaternion prev_q = Quaternion.identity;
+
+            public QuaternionLinearPredictor()
+            {
+            }
+            public Quaternion filter(Quaternion q,int sensorTime, int recTime)
+            {
+                // linear predictor. It is needed to compensate for differencies between sensor rate and frame rate.
+                if (prev_sensorTime == -1)
                     {
                         prev2_sensorTime = prev_sensorTime;
                         prev2_recTime = prev_recTime;
@@ -88,17 +149,15 @@ namespace MVRPlugin
                         prev_q = q;
                         return q;
                     }
-                    else if (prev_sensorTime == sensorTime) // the sensor have not since the last frame
+                    else if (prev_sensorTime == sensorTime) // the sensor have not updated since the last frame
                     {
                         float timeAdv = ((Environment.TickCount - prev_recTime) + (prev_sensorTime - prev2_sensorTime)) / (float)(prev_sensorTime - prev2_sensorTime);
-                        //d($"timeAdv = {timeAdv} ; NU");
                         Quaternion res = Quaternion.SlerpUnclamped(prev_q, q, timeAdv);
                         return res;
                     }
                     else
                     {
                         float timeAdv = ((Environment.TickCount - recTime) + (sensorTime - prev_sensorTime)) / (float)(sensorTime - prev_sensorTime);
-                        //d($"timeAdv = {timeAdv}");
                         Quaternion res = Quaternion.SlerpUnclamped(prev_q, q, timeAdv);
 
                         prev2_sensorTime = prev_sensorTime;
@@ -110,128 +169,97 @@ namespace MVRPlugin
 
                         return res;
                     }
-
-                };
-            }
-
-            if (null == damper)
+                }
+            public void reset()
             {
-                Quaternion prev_q = Quaternion.identity;
-                int prev_t = -1; 
-                damper = (q) => // capturing prev_q and prev_t and damper_ms
-                {
-                    if( prev_t == -1)
-                    {
-                        prev_q = q;
-                        prev_t = Environment.TickCount;
-                        return q;
-                    }
-                    int t = Environment.TickCount;
-                    float p = Mathf.Exp( -(t - prev_t) / damper_ms );
-
-                    d($"damper_ms={damper_ms}");
-
-                    Quaternion res;
-                    if (p < 1e-8) res = q;
-                    else res = Quaternion.Slerp(q, prev_q, p);
-                    prev_q = res;
-                    prev_t = t;
-
-                    return res;
-                };
+                    prev_sensorTime = -1;
             }
+        }
 
-            if(null == limiter)
+        class QuaternionFilterAmplifier : QuaternionFilter
+        {
+
+            Func<Vector3> get_amplification_vector;
+            public QuaternionFilterAmplifier(Func<Vector3> get_amplification_vector)
             {
-                limiter = (q) =>
-                {
+                this.get_amplification_vector = get_amplification_vector;
+            }
+            public Quaternion filter(Quaternion q)
+            {
+                Vector3 a = q.eulerAngles;
+                Vector3 amplification_vector = this.get_amplification_vector.Invoke();
+
+                if (a.x > 180) a.x -= 360;
+                if (a.y > 180) a.y -= 360;
+                if (a.z > 180) a.z -= 360;
+
+                a.x *= amplification_vector.x;
+                a.y *= amplification_vector.y;
+                a.z *= amplification_vector.z;
+
+                return Quaternion.Euler(a);
+            }
+            public void reset()
+            {
+            }
+        }
+
+        class QuaternionFilterLimiter : QuaternionFilter
+        {
+
+            Func<Vector3> get_limiting_vector;
+            public QuaternionFilterLimiter(Func<Vector3> get_limiting_vector)
+            {
+                this.get_limiting_vector = get_limiting_vector;
+            }
+            public Quaternion filter(Quaternion q)
+            {
                     Vector3 a = q.eulerAngles;
-                    
-                    if (a.x > 180) a.x -= 360;
-                    if (a.y > 180) a.y -= 360;
-                    if (a.z > 180) a.z -= 360;
-                    //d($"limiter : {a.x} , {a.y} , {a.z}");
-                    a.x = Mathf.Clamp(a.x, -limiter_x, limiter_x);
-                    a.y = Mathf.Clamp(a.y, -limiter_y, limiter_y);
-                    a.z = Mathf.Clamp(a.z, -limiter_z, limiter_z);
-                    
-                    return Quaternion.Euler(a);
-                };
-            }
 
-            if(null == deadband)
-            {
-                bool deadbandNeedsInit = true;
-                Quaternion prev_used_q = Quaternion.identity;
-                deadband = (q) =>
-                {
-                    if(deadbandNeedsInit)
-                    {
-                        prev_used_q = q;
-                        deadbandNeedsInit = false;
-                        return q;
-                    }
-                    float angle = Quaternion.Angle(prev_used_q, q);
-                    if (angle > deadbandAngle)
-                        prev_used_q = q;
-                    return prev_used_q;
-                };
-            }
-
-            if (null == finalDamper)
-            {
-                Quaternion prev_q = Quaternion.identity;
-                int prev_t = -1;
-                finalDamper = (q) => // capturing prev_q and prev_t and damper_ms
-                {
-                    if(prev_t == -1)
-                    {
-                        prev_t = Environment.TickCount;
-                        prev_q = q;
-                        return q;
-                    }
-                    int t = Environment.TickCount;
-                    float p = Mathf.Exp(-(t - prev_t) / finalDamper_ms);
-                    Quaternion res;
-                    if (p < 1e-8) res = q;
-                    else res = Quaternion.Slerp(q, prev_q, p);
-                    prev_q = res;
-                    prev_t = t;
-
-                    return res;
-                };
-            }
-
-            if (null == amplifier)
-            {
-                amplifier = (q) => 
-                {
-                    Vector3 a = q.eulerAngles;
+                Vector3 limits = get_limiting_vector.Invoke();
 
                     if (a.x > 180) a.x -= 360;
                     if (a.y > 180) a.y -= 360;
                     if (a.z > 180) a.z -= 360;
-
-                    //d($"amplification_x = {amplification_x}");
-                    a.x *= amplification_x;
-                    a.y *= amplification_y;
-                    a.z *= amplification_z;
+                    a.x = Mathf.Clamp(a.x, -limits.x, limits.x);
+                    a.y = Mathf.Clamp(a.y, -limits.y, limits.y);
+                    a.z = Mathf.Clamp(a.z, -limits.z, limits.z);
 
                     return Quaternion.Euler(a);
-                };
+            }
+            public void reset()
+            {
+            }
+        }
+        #endregion
+
+        Quaternion calc()
+        {
+
+            if (headTimeSens - headTimeSens2 < 200 && headTimeRec - headTimeRec2 < 200 && Environment.TickCount - headTimeRec < 200)
+            { }  // all ok
+            else
+            {
+                //d($"q22 {headTimeSens - headTimeSens2} / {headTimeRec - headTimeRec2}  / {Environment.TickCount - headTimeRec}");
+                // sensor stale, reset
+                damper.reset();
+                deadband.reset();
+                finalDamper.reset();
+                linearPredictor.reset();
+                amplifier.reset();
+                //return; 
             }
 
             Quaternion rot = headRotation;
 
-            rot = damper(rot); // stateful and time-dependent
-            rot = linearPredictor(rot, headTimeSens, headTimeRec); // stateful and time-dependent
-            //rot = deadband(rot); // stateful
-            //rot = limiter(rot); // stateless
-            rot = finalDamper(rot); // stateful and time-dependent
-            rot = amplifier(rot); // stateless
+            rot = damper.filter(rot); // stateful and time-dependent
+            rot = linearPredictor.filter(rot, headTimeSens, headTimeRec); // stateful and time-dependent
+            rot = deadband.filter(rot); // stateful
+            rot = limiter.filter(rot); // stateless
+            rot = finalDamper.filter(rot); // stateful and time-dependent
+            rot = amplifier.filter(rot); // stateless
 
             return rot;
-
         }
 
         #endregion
@@ -240,130 +268,165 @@ namespace MVRPlugin
 
         private void processPacket(byte[] p, int millis)
         {
-            int pp = 0;
-            while (pp < p.Length)
+            if(p.Length != 48)
+                d($"packet length={p.Length}");
+
+            // packets of length 48 are reserved for messages from opentrack
+            if (p.Length == 48) // 6 doubles
             {
-                byte sensorType = p[pp];
-                pp += 1;
-                switch (sensorType)
+                headTimeSens2 = headTimeSens;
+                headTimeRec2 = headTimeRec;
+                headPosition2 = headPosition;
+                headRotation2 = headRotation;
+
+                headTimeRec = millis;  // the time, when packet was received , local time
+                headTimeSens = Environment.TickCount; // openstack does not provides sensor time
+
+                //double a = System.BitConverter.ToDouble(p, 0);
+                //double b = System.BitConverter.ToDouble(p, 8);
+                //double c = System.BitConverter.ToDouble(p, 16);
+                double y = System.BitConverter.ToDouble(p, 24);
+                double x = System.BitConverter.ToDouble(p, 32);
+                double z = System.BitConverter.ToDouble(p, 40);
+                //d($"a={a:.0}\tb={b:.0}\tc={c:.0}\tx={x:.0}\ty={y:.0}\tz={z:.0}");
+
+                //d($"x={x:.0}\ty={y:.0}\tz={z:.0}");
+
+                headRotation = Quaternion.Euler((float)x, (float)y, (float)z);
+            }
+            else
+            {
+
+
+                int pp = 0;
+                while (pp < p.Length)
                 {
-                    case 67:
-                        {
-                            int dataSize = System.BitConverter.ToInt16(p, pp);
-                            pp += 2;
-
-                            Int64 timestamp = System.BitConverter.ToInt64(p, pp);
-                            pp += 8;
-
-                            float x = (float)System.BitConverter.ToDouble(p, pp);
-                            pp += 8;
-                            float y = (float)System.BitConverter.ToDouble(p, pp);
-                            pp += 8;
-                            float z = (float)System.BitConverter.ToDouble(p, pp);
-                            pp += 8;
-
-                            float a = (float)System.BitConverter.ToDouble(p, pp);
-                            pp += 8;
-                            float b = (float)System.BitConverter.ToDouble(p, pp);
-                            pp += 8;
-                            float c = (float)System.BitConverter.ToDouble(p, pp);
-                            pp += 8;
-
-
-                            headTimeSens2 = headTimeSens;
-                            headTimeRec2 = headTimeRec;
-                            headPosition2 = headPosition;
-                            headRotation2 = headRotation;
-
-                            headTimeRec = millis;  // time when packet was received , local time
-                            headTimeSens = (int)timestamp;  // when pose sensor produced this data, sensor time
-
-                            headPosition = new Vector3(x, y, z);
-
+                    byte sensorType = p[pp];
+                    pp += 1;
+                    switch (sensorType)
+                    {
+                        case 67:
                             {
-                                Vector3 rodr = new Vector3(a, b, c);
-                                float angle = rodr.magnitude;
-                                Quaternion headLatestQuaternion = Quaternion.AngleAxis(angle * 180 / Mathf.PI, rodr / angle);
+                                int dataSize = System.BitConverter.ToInt16(p, pp);
+                                pp += 2;
 
-                                Vector3 euler = headLatestQuaternion.eulerAngles;
+                                Int64 timestamp = System.BitConverter.ToInt64(p, pp);
+                                pp += 8;
 
-                                float euler_x = euler.x;
-                                float euler_y = euler.y;
-                                float euler_z = euler.z;
+                                float x = (float)System.BitConverter.ToDouble(p, pp);
+                                pp += 8;
+                                float y = (float)System.BitConverter.ToDouble(p, pp);
+                                pp += 8;
+                                float z = (float)System.BitConverter.ToDouble(p, pp);
+                                pp += 8;
 
-                                if (euler_x > 180) euler_x -= 360;
-                                if (euler_y > 180) euler_y -= 360;
-                                euler_x *= -1f;
-                                euler_y *= -1f;
-                                euler_z -= 180;
-                                euler_z *= -1f;
+                                float a = (float)System.BitConverter.ToDouble(p, pp);
+                                pp += 8;
+                                float b = (float)System.BitConverter.ToDouble(p, pp);
+                                pp += 8;
+                                float c = (float)System.BitConverter.ToDouble(p, pp);
+                                pp += 8;
 
-                                headRotation = Quaternion.Euler(euler_x, euler_y, euler_z);
+
+                                headTimeSens2 = headTimeSens;
+                                headTimeRec2 = headTimeRec;
+                                headPosition2 = headPosition;
+                                headRotation2 = headRotation;
+
+                                headTimeRec = millis;  // time when packet was received , local time
+                                headTimeSens = (int)timestamp;  // when pose sensor produced this data, sensor time
+
+                                headPosition = new Vector3(x, y, z);
+
+                                {
+                                    Vector3 rodr = new Vector3(a, b, c);
+                                    float angle = rodr.magnitude;
+                                    Quaternion headLatestQuaternion = Quaternion.AngleAxis(angle * 180 / Mathf.PI, rodr / angle);
+
+                                    Vector3 euler = headLatestQuaternion.eulerAngles;
+
+                                    float euler_x = euler.x;
+                                    float euler_y = euler.y;
+                                    float euler_z = euler.z;
+
+                                    if (euler_x > 180) euler_x -= 360;
+                                    if (euler_y > 180) euler_y -= 360;
+                                    euler_x *= -1f;
+                                    euler_y *= -1f;
+                                    euler_z -= 180;
+                                    euler_z *= -1f;
+
+                                    headRotation = Quaternion.Euler(euler_x, euler_y, euler_z);
+
+                                }
+
+                                break;
+                            }
+                        case 68: // BNO055 @ ESP8266
+                            {
+                                int dataSize = System.BitConverter.ToInt16(p, pp);
+                                pp += 2;
+
+                                Int32 timestamp = System.BitConverter.ToInt32(p, pp);
+                                pp += 4;
+
+                                Int32 counter = System.BitConverter.ToInt32(p, pp);
+                                pp += 4;
+
+                                float w = (float)System.BitConverter.ToInt16(p, pp);
+                                pp += 2;
+                                float x = (float)System.BitConverter.ToInt16(p, pp);
+                                pp += 2;
+                                float y = (float)System.BitConverter.ToInt16(p, pp);
+                                pp += 2;
+                                float z = (float)System.BitConverter.ToInt16(p, pp);
+                                pp += 2;
+
+                                Quaternion q = Quaternion.identity;
+
+                                q *= Quaternion.Euler(90, 0, 0);
+                                q *= new Quaternion(x / 16384, y / 16384, z / 16384, w / 16384);
+                                q *= Quaternion.Euler(-90, 0, 0);
+
+                                q *= Quaternion.Euler(0, -210, 0);
+                                q *= Quaternion.Euler(0, 180, 0);
+
+                                {
+                                    //Vector3 e = q.eulerAngles;
+                                    //d($"BNO055 q->euler: {e.x}  {e.y}  {e.z}");
+                                    //Atom a = SuperController.singleton.GetAtomByUid("DSBR_Chair");
+                                    //a.transform.rotation = q;
+                                }
+
+                                headRotation = q;
+
+                                ////////////////
+                                headTimeSens2 = headTimeSens;
+                                headTimeRec2 = headTimeRec;
+                                headPosition2 = headPosition;
+                                headRotation2 = headRotation;
+
+                                headTimeRec = Environment.TickCount;  // the time, when packet was received , local time
+                                headTimeSens = (int)timestamp;  // when pose sensor produced this data, sensor time
+
+                                break;
                             }
 
-                            break;
-                        }
-                    case 68:
-                        {
-                            int dataSize = System.BitConverter.ToInt16(p, pp);
-                            pp += 2;
+                        case 0xff: // announce packet
+                            return;
 
-                            Int32 timestamp = System.BitConverter.ToInt32(p, pp);
-                            pp += 4;
-
-                            Int32 counter = System.BitConverter.ToInt32(p, pp);
-                            pp += 4;
-
-                            float w = (float)System.BitConverter.ToInt16(p, pp);
-                            pp += 2;
-                            float x = (float)System.BitConverter.ToInt16(p, pp);
-                            pp += 2;
-                            float y = (float)System.BitConverter.ToInt16(p, pp);
-                            pp += 2;
-                            float z = (float)System.BitConverter.ToInt16(p, pp);
-                            pp += 2;
-
-                            //d($"BNO055 quaternion: {w}  {x}  {y}  {z}");
-
-                            Quaternion q = Quaternion.identity;
-
-                            q *= Quaternion.Euler(90, 0, 0) ;
-                            q *= new Quaternion(x / 16384, y / 16384, z / 16384, w / 16384 );
-                            q *= Quaternion.Euler(-90, 0, 0);
-
-                            q *= Quaternion.Euler(0, -210 , 0);
-                            q *= Quaternion.Euler(0, 180, 0);
-
-                           
-                            //Vector3 e = q.eulerAngles;
-                            //d($"BNO055 q->euler: {e.x}  {e.y}  {e.z}");
-
+                        default: // skip unknown chunk
                             {
-                                //Atom a = SuperController.singleton.GetAtomByUid("DSBR_Chair");
-                                //a.transform.rotation = q;
-
+                                int dataSize = System.BitConverter.ToInt16(p, pp);
+                                pp += 2;
+                                pp += dataSize - 2 - 1;
                             }
-
-                            headRotation = q;
-
                             break;
+                    }
 
-                        }
-
-                    case 0xff: // announce packet
+                    if (pp < 0 || pp >= p.Length)
                         return;
-
-                    default: // skip unknown packet
-                        {
-                            int dataSize = System.BitConverter.ToInt16(p, pp);
-                            pp += 2;
-                            pp += dataSize - 2 - 1;
-                        }
-                        break;
                 }
-
-                if (pp < 0 || pp >= p.Length)
-                    return;
             }
         }
         #endregion
@@ -406,7 +469,7 @@ namespace MVRPlugin
 
         SPACER 15.0
 
-        Dead-band angle : Float [3,0,10]
+        Dead-band angle : Float [0.8,0,10]
         `Camera will move only if your head have moved this far. Prevents camera shaking due to input noise. Applied before limiter.
         ^height=125,fontSize=25
 
@@ -526,7 +589,7 @@ namespace MVRPlugin
                             case "Boolean":
                                 {
                                     jsBoolean[varname] = new JSONStorableBool(titlename, false, new JSONStorableBool.SetBoolCallback(v => BooleanSettingChanged(varname, v)));
-                                    
+
                                     RegisterBool(jsBoolean[varname]);
                                     CreateToggle(jsBoolean[varname], side);
 
@@ -569,7 +632,7 @@ namespace MVRPlugin
 
         private void FloatSettingChanged(string varname, float value)
         {
-            d($" {varname} = {value} ");
+            //d($" {varname} = {value} ");
             if (varname == "Dead-band angle") deadbandAngle = value;
             else if (varname == "Damper") damper_ms = value;
             else if (varname == "Final damper") finalDamper_ms = value;
@@ -601,6 +664,13 @@ namespace MVRPlugin
                 InitControls(rightside_settings_freeform, true);
 
                 fUiLastActive = Environment.TickCount;
+
+                damper = new QuaternionFilterDamper(() => { return damper_ms; });
+                deadband = new QuaternionFilterDeadband(() => { return deadbandAngle; });
+                linearPredictor = new QuaternionLinearPredictor();
+                amplifier = new QuaternionFilterAmplifier(() => { return new Vector3(amplification_x, amplification_y, amplification_z); });
+                limiter = new QuaternionFilterLimiter(() => { return new Vector3(limiter_x,limiter_y,limiter_z); });
+                finalDamper = new QuaternionFilterDamper(() => { return finalDamper_ms; });
             }
             catch (Exception e)
             {
@@ -613,6 +683,7 @@ namespace MVRPlugin
         {
             try
             {
+
             }
             catch (Exception e)
             {
@@ -622,7 +693,7 @@ namespace MVRPlugin
 
 
         bool F2_pressed;
-        //Quaternion prevRot = Quaternion.identity;
+        
         Quaternion baseRot = Quaternion.identity;
         Quaternion relRot = Quaternion.identity;
 
@@ -671,7 +742,7 @@ namespace MVRPlugin
                 if (Input.GetKeyUp(KeyCode.F2))
                 {
                     F2_pressed = false;
-                    Quaternion newBaseRot = baseRot  * relRot * Quaternion.Inverse(baseRot) ;
+                    Quaternion newBaseRot = baseRot * relRot * Quaternion.Inverse(baseRot);
                     Quaternion newRelRot = baseRot;
                     baseRot = newBaseRot;
                     relRot = newRelRot;
@@ -684,21 +755,16 @@ namespace MVRPlugin
                     baseRot = newBaseRot;
                     relRot = newRelRot;
 
-                    damper = null;
-                    deadband = null;
-                    finalDamper = null;
-                    linearPredictor = null;
+                    damper.reset();
+                    deadband.reset();
+                    finalDamper.reset();
+                    linearPredictor.reset();
+                    limiter.reset();
                 }
                 else relRot = rot;
 
                 SuperController.singleton.MonitorRig.rotation = SuperController.singleton.MonitorRig.rotation * baseRot * relRot;
 
-                //prevRot = baseRot * relRot;
-
-                /*SuperController.singleton.MonitorRig.rotation = SuperController.singleton.MonitorRig.rotation * Quaternion.Inverse(prevRot);
-                SuperController.singleton.MonitorRig.rotation = SuperController.singleton.MonitorRig.rotation * rot;
-                prevRot = rot;
-                */
 
             }
             catch (Exception e)
@@ -728,8 +794,7 @@ namespace MVRPlugin
         // if you registered objects to supercontroller or atom, you should unregister them here
         void OnDestroy()
         {
-            //SuperController.singleton.navigationRig.rotation = Quaternion.Inverse(prevRot) * SuperController.singleton.navigationRig.rotation;
-            SuperController.singleton.navigationRig.rotation = SuperController.singleton.navigationRig.rotation * Quaternion.Inverse( baseRot * relRot );
+            //SuperController.singleton.navigationRig.rotation = SuperController.singleton.navigationRig.rotation * Quaternion.Inverse(baseRot * relRot);
 
             if (null != terminateReceivingThread)
                 terminateReceivingThread();
@@ -845,7 +910,8 @@ namespace MVRPlugin
         private UdpClient __d_udpClient = null;
         void d(string str)
         {
-            
+        /*
+
             if (null == __d_udpClient)
             {
                 try
@@ -860,7 +926,7 @@ namespace MVRPlugin
             byte[] b = ASCIIEncoding.ASCII.GetBytes(str);
 
             __d_udpClient.Send(b, b.Length, remoteIP);
-            
+        */
             // tcpdump -Aqnn udp port 65533
             // or, nicer:
             // unbuffer tcpdump -Aqnn udp port 65533 | stdbuf -o0 grep -v '192.168' | cut -b 29-

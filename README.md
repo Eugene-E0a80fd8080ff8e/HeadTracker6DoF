@@ -11,6 +11,16 @@ Unzip it.
 Make sure your web camera is connected.
 Run file `_run.cmd` or one of other *_run...* files, selecting your camera and resolution according to file name.
 
+This will let you see yourself with head tracking information presented on the picture.
+
+Now, return to Virt-a-Mate, open sessions plugings section and add the HeadTracker6DoF.cs plugin. It should run fine with default settings.
+
+## Opentrack integration
+
+As of v0.3 an integration to opentrack was added. To use it, run opentrack with its output set to "UDP over network" with ip 127.0.0.1 and port 62731. (The IP address is given with assumption you run opentrack on the computer you run VaM).
+
+If you wondering what opentrack is, you may want to watch a video on how opentrack is used in flight simulators: <https://www.youtube.com/watch?v=LPlahUVPx4o> .
+
 ## How to compile
 
 1. Make sure you have Visual Studio installed. 

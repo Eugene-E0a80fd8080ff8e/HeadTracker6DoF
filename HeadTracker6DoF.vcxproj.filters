@@ -27,7 +27,25 @@
     <ClCompile Include="dlib.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="pipesender.cpp">
+    <ClCompile Include="AprilTagsTriplets.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="aruco.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="face_detector.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="camera.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="performance_monitor.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="cvui.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="argagg.hpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -44,6 +62,24 @@
     <ClInclude Include="basic_quaternions.hpp">
       <Filter>Source Files</Filter>
     </ClInclude>
+    <ClInclude Include="AprilTagsTriplets.hpp">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="after_stdafx.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="face_detector.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="camera.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="performance_monitor.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
+    <ClInclude Include="cvui.h">
+      <Filter>Source Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Text Include="further development.txt">
@@ -54,14 +90,9 @@
     <CopyFileToFolders Include="shape_predictor_68_face_landmarks.dat">
       <Filter>Resource Files</Filter>
     </CopyFileToFolders>
-    <CopyFileToFolders Include="_run.cmd" />
-    <CopyFileToFolders Include="_run Camera 1 1280x1024.cmd" />
-    <CopyFileToFolders Include="_run Camera 0 640x480.cmd" />
-    <CopyFileToFolders Include="_run Camera 0 800x600.cmd" />
-    <CopyFileToFolders Include="_run Camera 0 1024x768.cmd" />
-    <CopyFileToFolders Include="_run Camera 0 1280x1024.cmd" />
-    <CopyFileToFolders Include="_run Camera 1 640x480.cmd" />
-    <CopyFileToFolders Include="_run Camera 1 800x600.cmd" />
-    <CopyFileToFolders Include="_run Camera 1 1024x768.cmd" />
+    <CopyFileToFolders Include="_run Camera-0 640x480.cmd" />
+    <CopyFileToFolders Include="_run Camera-0 1280x768.cmd" />
+    <CopyFileToFolders Include="_run Camera-1 640x480.cmd" />
+    <CopyFileToFolders Include="_run Camera-1 1280x768.cmd" />
   </ItemGroup>
 </Project>

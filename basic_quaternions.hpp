@@ -1,4 +1,8 @@
-#include <math.h>
+
+
+
+
+
 
 class vector3
 {
@@ -114,6 +118,33 @@ public:
 	}
 
 
+
+	// OpenCV
+	static quaternion fromMat_rvec(const cv::Mat & m) {
+		double l = norm(m);
+		cv::Mat mn = m / l;
+		vector3 v(mn.at<double>(0), mn.at<double>(1), mn.at<double>(2));
+		return quaternion::fromAngleAxis(l, v);
+	}
+
+	quaternion(const cv::Mat& m) {
+		*this = fromMat_rvec(m);
+	}
+
+	cv::Mat toMat(){
+		double angle;
+		vector3 v;
+		this->toAngleAxis(angle, v);
+		angle += 2 * CV_PI;
+		vector<double> d{ v.X * angle,v.Y * angle, v.Z * angle };
+		return cv::Mat(d, true);
+	}
+
+	static double angleDistanceMat(const cv::Mat& a, const cv::Mat& b) {	// distance for rotation vectors
+		quaternion qa = fromMat_rvec(a);
+		quaternion qb = fromMat_rvec(b);
+		return qa.angleDistance(qb);
+	}
 
 
 };

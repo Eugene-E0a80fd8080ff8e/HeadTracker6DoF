@@ -1,7 +1,7 @@
 #pragma once
 
 
-void makeRotatedMat(const cv::Mat src, cv::Mat& dst, double angle, cv::Mat& directRot)
+inline void makeRotatedMat(const cv::Mat src, cv::Mat& dst, double angle, cv::Mat& directRot)
 {
     double angleRad = angle * 3.1415 / 180;
     float w = src.size().width, h = src.size().height;
@@ -29,7 +29,7 @@ void makeRotatedMat(const cv::Mat src, cv::Mat& dst, double angle, cv::Mat& dire
 }
 
 
-string MatType2str(int type) {
+inline string MatType2str(int type) {
     string r;
 
     uchar depth = type & CV_MAT_DEPTH_MASK;
@@ -53,7 +53,7 @@ string MatType2str(int type) {
 }
 
 // transforms ( =traslation+rotation ) a Point of two doubles with 2x3 transformation matrix
-cv::Point2d transform_d(const cv::Point2d p, const cv::Mat rot)
+inline cv::Point2d transform_d(const cv::Point2d p, const cv::Mat rot)
 {
     if (rot.type() != CV_64F)
     {
@@ -66,7 +66,7 @@ cv::Point2d transform_d(const cv::Point2d p, const cv::Mat rot)
     );
 }
 
-cv::Point2f transform_f(const cv::Point2f p, const cv::Mat rot)
+inline cv::Point2f transform_f(const cv::Point2f p, const cv::Mat rot)
 {
     if (rot.type() != CV_32F)
     {
@@ -79,7 +79,7 @@ cv::Point2f transform_f(const cv::Point2f p, const cv::Mat rot)
     );
 }
 
-cv::RotatedRect transformRR(const cv::RotatedRect r, const cv::Mat rot)
+inline cv::RotatedRect transformRR(const cv::RotatedRect r, const cv::Mat rot)
 {
 
     // here I use RotatedRect as an oriented rect, although RotatedRect is not defined as such.
@@ -93,12 +93,12 @@ cv::RotatedRect transformRR(const cv::RotatedRect r, const cv::Mat rot)
 
 }
 
-cv::RotatedRect scaleRR(const cv::RotatedRect rr, float scale)
+inline cv::RotatedRect scaleRR(const cv::RotatedRect rr, float scale)
 {
     return cv::RotatedRect(rr.center * scale, rr.size * scale, rr.angle);
 }
 
-void drawRotatedRect(const cv::Mat dst, const cv::RotatedRect rr, const cv::Scalar color)
+inline void drawRotatedRect(const cv::Mat dst, const cv::RotatedRect rr, const cv::Scalar color)
 {
     cv::Point2f rrPoints[5];
     rr.points(rrPoints);
@@ -108,7 +108,7 @@ void drawRotatedRect(const cv::Mat dst, const cv::RotatedRect rr, const cv::Scal
 }
 
 
-void extractRotatedSubMat(const cv::Mat src, cv::Mat& dst, cv::RotatedRect region, cv::Mat& directRot)
+inline void extractRotatedSubMat(const cv::Mat src, cv::Mat& dst, cv::RotatedRect region, cv::Mat& directRot)
 {
     cv::Rect bounds = region.boundingRect();
 
@@ -123,11 +123,11 @@ void extractRotatedSubMat(const cv::Mat src, cv::Mat& dst, cv::RotatedRect regio
     cv::warpAffine(src, dst, directRot, region.size, cv::INTER_LINEAR);
 }
 
-cv::Rect cvtRect(dlib::rectangle const& r) {
+inline cv::Rect cvtRect(dlib::rectangle const& r) {
     return cv::Rect(r.left(), r.top(), r.width(), r.height());
 }
 
-cv::Point cvtPoint(dlib::point const & p) {
+inline cv::Point cvtPoint(dlib::point const & p) {
     
     return cv::Point( (int)p.x(), (int)p.y());
 }

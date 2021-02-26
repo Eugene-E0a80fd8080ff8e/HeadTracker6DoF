@@ -1,12 +1,14 @@
 
+#include "stdafx.h"
+#include "after_stdafx.h"
 
-#include "udpsender.hpp"
-#include <WinSock2.h>
-#include <Windows.h>
-#include <iostream>
+//#define _WINSOCKAPI_
+//#define WIN32_LEAN_AND_MEAN 
+//#include <Windows.h>
+
+
 #include <stdint.h>
 #include <chrono>
-
 
 
 
@@ -21,6 +23,8 @@ int64_t currentTimeMillis()
 
 UDPSender::UDPSender(uint16_t port)
 {
+    this->port = port;
+
     int iResult;
     WSADATA wsaData;
 
@@ -30,7 +34,7 @@ UDPSender::UDPSender(uint16_t port)
         exit(13);
     }
 
-    fd = (__int64)socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
+    fd = socket(AF_INET, SOCK_DGRAM, IPPROTO_UDP);
     if (fd == -1) {
         cout << "socket failed with error: " << WSAGetLastError() << endl;
         WSACleanup();
@@ -136,6 +140,8 @@ void UDPSender::send(int x, int y, std::vector<std::pair<int, int> > data)
 }
 */
 
+/*
+
 char* write_packet0(char* buf)
 {
     buf[0] = 0; // empty packet
@@ -185,11 +191,48 @@ char* write_packet73(char* buf, array< pair<short, short> ,68> data)
     *(short*)(&buf[1]) = c;
 
     return buf + c;
+}
+
+char* write_hands_packet(char* buf,uint8_t packetId, vector<float> const& handLocation)
+{
+    if (handLocation.size() == 6)
+    {
+        buf[0] = packetId;
+        int c = sizeof(char) + sizeof(short);
+        *(int64_t*)(buf + c) = currentTimeMillis();
+        c += sizeof(int64_t);
+        for (auto datum : handLocation) {
+            *(float*)(&buf[c]) = datum;
+            c += sizeof(float);
+        }
+        *(short*)(&buf[1]) = c;
+
+        return buf + c;
+    }
+    else
+        return buf;
+}
+
+void UDPSender::send_hands_location(vector<float> const& left, vector<float> const& right)
+{
+    char* p = buf;
+
+    p = write_packet0(p);
+    p = write_hands_packet(p, 81, left);
+    p = write_hands_packet(p, 82, right);
+
+    struct sockaddr_in remote;
+    memset(&remote, 0, sizeof(remote));
+    remote.sin_family = AF_INET;
+    remote.sin_addr.s_addr = 0x0100007f; // 127.0.0.1
+    remote.sin_port = htons(62731);
+
+    sendto(fd, buf, p - buf, 0, (const sockaddr*)&remote, sizeof(remote));
 
 }
 
 
-void UDPSender::send_rt_and_68points(vector<double> data, array< pair<short, short> , 68 > data68)
+void UDPSender::send_rt_and_68points(vector<double> data, array<pair<short, short>,68> data68)
 {
     char* p = buf;
 
@@ -204,5 +247,119 @@ void UDPSender::send_rt_and_68points(vector<double> data, array< pair<short, sho
     remote.sin_port = htons(62731);
 
     sendto(fd, buf, p - buf, 0, (const sockaddr*)&remote, sizeof(remote));
+}
 
+void UDPSender::send_rt(vector<double> data)
+{
+    char* p = buf;
+
+    p = write_packet0(p);
+    p = write_packet67(p, data);
+
+    struct sockaddr_in remote;
+    memset(&remote, 0, sizeof(remote));
+    remote.sin_family = AF_INET;
+    remote.sin_addr.s_addr = 0x0100007f; // 127.0.0.1
+    remote.sin_port = htons(62731);
+
+    sendto(fd, buf, p - buf, 0, (const sockaddr*)&remote, sizeof(remote));
+}
+*/
+
+
+void UDPSender::begin()
+{
+    bufc = 0;
+}
+
+void UDPSender::add_empty() 
+{
+    push<uint8_t>(0); // empty packet
+    push<uint16_t>(4);  // packet length
+    push<uint8_t>(0); // just nothing
+}
+
+void UDPSender::add_head(cv::Mat rvec, cv::Mat tvec)
+{
+    int oldc = bufc;
+    push<uint8_t>(57);
+    uint16_t & size = getRef<uint16_t>();
+    push<uint64_t>(currentTimeMillis());
+    push<double>(tvec.at<double>(0));
+    push<double>(tvec.at<double>(1));
+    push<double>(tvec.at<double>(2));
+    push<double>(rvec.at<double>(0));
+    push<double>(rvec.at<double>(1));
+    push<double>(rvec.at<double>(2));
+    size = bufc - oldc;
+}
+
+void UDPSender::add_left_hand(cv::Mat rvec, cv::Mat tvec)
+{
+    int oldc = bufc;
+    push<uint8_t>(81);
+    uint16_t& size = getRef<uint16_t>();
+    push<uint64_t>(currentTimeMillis());
+    push<float>((float)rvec.at<double>(0));
+    push<float>((float)rvec.at<double>(1));
+    push<float>((float)rvec.at<double>(2));
+    push<float>((float)tvec.at<double>(0));
+    push<float>((float)tvec.at<double>(1));
+    push<float>((float)tvec.at<double>(2));
+    size = bufc - oldc;
+}
+
+void UDPSender::add_right_hand(cv::Mat rvec, cv::Mat tvec)
+{
+    int oldc = bufc;
+    push<uint8_t>(82);
+    uint16_t& size = getRef<uint16_t>();
+    push<uint64_t>(currentTimeMillis());
+    push<float>((float)rvec.at<double>(0));
+    push<float>((float)rvec.at<double>(1));
+    push<float>((float)rvec.at<double>(2));
+    push<float>((float)tvec.at<double>(0));
+    push<float>((float)tvec.at<double>(1));
+    push<float>((float)tvec.at<double>(2));
+    size = bufc - oldc;
+}
+
+void UDPSender::add_68points(std::array< std::pair<short, short>, 68> const & data68)
+{
+    int oldc = bufc;
+    push<uint8_t>(73);
+    uint16_t& size = getRef<uint16_t>();
+    push<uint64_t>(currentTimeMillis());
+    for (auto datum : data68) {
+        push<short>(datum.first);
+        push<short>(datum.second);
+    }
+    size = bufc - oldc;
+}
+
+/*
+void UDPSender::add_packet66(vector<double> data)
+{
+    int oldc = bufc;
+    push<uint8_t>(66);
+    uint16_t& size = getRef<uint16_t>();
+    push<uint64_t>(currentTimeMillis());
+    for (int i = 0;i < data.size();i++)
+        push<double>(data[i] );
+    size = bufc - oldc;
+}
+*/
+
+void UDPSender::send() 
+{
+    if(bufc>0)
+    {
+        struct sockaddr_in remote;
+        memset(&remote, 0, sizeof(remote));
+        remote.sin_family = AF_INET;
+        remote.sin_addr.s_addr = 0x0100007f; // 127.0.0.1
+        remote.sin_port = htons(this->port);
+
+        sendto(fd, buf, bufc, 0, (const sockaddr*)&remote, sizeof(remote));
+    }
 }

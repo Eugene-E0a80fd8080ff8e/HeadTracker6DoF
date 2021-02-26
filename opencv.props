@@ -3,12 +3,17 @@
   <ImportGroup Label="PropertySheets" />
   <PropertyGroup Label="UserMacros">
     <OpenCV_DIR>C:\lib\opencv\build</OpenCV_DIR>
+    <Aruco>C:\lib\opencv_contrib-4.4.0\modules\aruco</Aruco>
   </PropertyGroup>
   <PropertyGroup />
   <ItemDefinitionGroup />
   <ItemGroup>
     <BuildMacro Include="OpenCV_DIR">
       <Value>$(OpenCV_DIR)</Value>
+      <EnvironmentVariable>true</EnvironmentVariable>
+    </BuildMacro>
+    <BuildMacro Include="Aruco">
+      <Value>$(Aruco)</Value>
       <EnvironmentVariable>true</EnvironmentVariable>
     </BuildMacro>
   </ItemGroup>
